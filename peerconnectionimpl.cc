@@ -4,10 +4,13 @@
 #include "api/audio_codecs/builtin_audio_encoder_factory.h"
 #include "api/video_codecs/builtin_video_decoder_factory.h"
 #include "api/video_codecs/builtin_video_encoder_factory.h"
-#include "media/engine/webrtcvideocapturerfactory.h"
+#include "modules/video_capture/video_capture_factory.h"
 #include "modules/audio_device/include/audio_device.h"
 #include "modules/audio_processing/include/audio_processing.h"
 #include "modules/video_capture/video_capture_factory.h"
+#include "api/create_peerconnection_factory.h"
+#include "pc/video_track_source.h"
+#include "test/vcm_capturer.h"
 
 class NoSenseSetSessionDescriptionObserver
     : public webrtc::SetSessionDescriptionObserver {
@@ -22,6 +25,42 @@ class NoSenseSetSessionDescriptionObserver
   }
 };
 
+class CapturerTrackSource : public webrtc::VideoTrackSource {
+ public:
+  static rtc::scoped_refptr<CapturerTrackSource> Create() {
+    const size_t kWidth = 640;
+    const size_t kHeight = 480;
+    const size_t kFps = 30;
+    std::unique_ptr<webrtc::test::VcmCapturer> capturer;
+    std::unique_ptr<webrtc::VideoCaptureModule::DeviceInfo> info(
+        webrtc::VideoCaptureFactory::CreateDeviceInfo());
+    if (!info) {
+      return nullptr;
+    }
+    int num_devices = info->NumberOfDevices();
+    for (int i = 0; i < num_devices; ++i) {
+      capturer = absl::WrapUnique(
+          webrtc::test::VcmCapturer::Create(kWidth, kHeight, kFps, i));
+      if (capturer) {
+        return new rtc::RefCountedObject<CapturerTrackSource>(
+            std::move(capturer));
+      }
+    }
+
+    return nullptr;
+  }
+
+ protected:
+  explicit CapturerTrackSource(
+      std::unique_ptr<webrtc::test::VcmCapturer> capturer)
+      : VideoTrackSource(/*remote=*/false), capturer_(std::move(capturer)) {}
+
+ private:
+  rtc::VideoSourceInterface<webrtc::VideoFrame>* source() override {
+    return capturer_.get();
+  }
+  std::unique_ptr<webrtc::test::VcmCapturer> capturer_;
+};
 
 
 PeerConnectionImpl::PeerConnectionImpl(MainWindow* main_wnd)
@@ -126,38 +165,6 @@ bool PeerConnectionImpl::InitPeerConnection()
   return true;
 }
 
-std::unique_ptr<cricket::VideoCapturer> PeerConnectionImpl::OpenVideoCaptureDevice() {
-  std::vector<std::string> device_names;
-  {
-    std::unique_ptr<webrtc::VideoCaptureModule::DeviceInfo> info(
-        webrtc::VideoCaptureFactory::CreateDeviceInfo());
-    if (!info) {
-      return nullptr;
-    }
-    int num_devices = info->NumberOfDevices();
-    RTC_LOG(INFO) << __FUNCTION__ << ": Number of devices is " <<  num_devices;
-    for (int i = 0; i < num_devices; ++i) {
-      const uint32_t kSize = 256;
-      char name[kSize] = {0};
-      char id[kSize] = {0};
-      if (info->GetDeviceName(i, name, kSize, id, kSize) != -1) {
-        RTC_LOG(INFO) << __FUNCTION__ << ": " << name;
-        device_names.push_back(name);
-      }
-    }
-  }
-
-  cricket::WebRtcVideoDeviceCapturerFactory factory;
-  std::unique_ptr<cricket::VideoCapturer> capturer;
-  for (const auto& name : device_names) {
-    capturer = factory.Create(cricket::Device(name, 0));
-    if (capturer) {
-      break;
-    }
-  }
-  return capturer;
-}
-
 bool PeerConnectionImpl::AddTracks()
 {
   RTC_LOG(INFO) << __FUNCTION__;
@@ -172,13 +179,12 @@ bool PeerConnectionImpl::AddTracks()
                       << result_or_error.error().message();
   }
 
-  std::unique_ptr<cricket::VideoCapturer> video_device =
-  OpenVideoCaptureDevice();
+  rtc::scoped_refptr<CapturerTrackSource> video_device =
+      CapturerTrackSource::Create();
+
   if (video_device) {
     rtc::scoped_refptr<webrtc::VideoTrackInterface> video_track_(
-        peer_connection_factory_->CreateVideoTrack(
-            "kVideoLabel", peer_connection_factory_->CreateVideoSource(
-                             std::move(video_device), nullptr)));
+        peer_connection_factory_->CreateVideoTrack("kVideoLabel", video_device));
     main_wnd_->StartLocalRenderer(video_track_);
 
     result_or_error = peer_connection_->AddTrack(video_track_, {"stream_id"});

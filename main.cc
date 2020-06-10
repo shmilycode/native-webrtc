@@ -5,7 +5,7 @@
 
 #include <gtk/gtk.h>
 #include "examples/peerconnection/client/linux/main_wnd.h"
-#include "rtc_base/ssladapter.h"
+#include "rtc_base/ssl_adapter.h"
 #include "rtc_base/thread.h"
 
 class CustomSocketServer : public rtc::PhysicalSocketServer {

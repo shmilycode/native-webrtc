@@ -2,7 +2,7 @@
 #define PEERTEST_PEERCONNECTIONIMPL_H_
 #include <gtk/gtk.h>
 #include "examples/peerconnection/peer_test/linux/main_wnd.h"
-#include "api/peerconnectioninterface.h"
+#include "api/peer_connection_interface.h"
 
 class PeerConnectionImpl : public webrtc::CreateSessionDescriptionObserver,
                            public webrtc::PeerConnectionObserver,
@@ -24,7 +24,7 @@ class PeerConnectionImpl : public webrtc::CreateSessionDescriptionObserver,
   void OnFailure(webrtc::RTCError error) override;
   //for PeerConnectionObserver
   void OnSignalingChange(
-      webrtc::PeerConnectionInterface::SignalingState new_state) override{};
+      webrtc::PeerConnectionInterface::SignalingState new_state) override{}
   void OnAddTrack(
       rtc::scoped_refptr<webrtc::RtpReceiverInterface> receiver,
       const std::vector<rtc::scoped_refptr<webrtc::MediaStreamInterface>>&
@@ -35,9 +35,9 @@ class PeerConnectionImpl : public webrtc::CreateSessionDescriptionObserver,
       rtc::scoped_refptr<webrtc::DataChannelInterface> channel) override {}
   void OnRenegotiationNeeded() override {}
   void OnIceConnectionChange(
-      webrtc::PeerConnectionInterface::IceConnectionState new_state) override{};
+      webrtc::PeerConnectionInterface::IceConnectionState new_state) override{}
   void OnIceGatheringChange(
-      webrtc::PeerConnectionInterface::IceGatheringState new_state) override{};
+      webrtc::PeerConnectionInterface::IceGatheringState new_state) override{}
   void OnIceCandidate(const webrtc::IceCandidateInterface* candidate) override;
   void OnIceConnectionReceivingChange(bool receiving) override {}
 
@@ -53,7 +53,6 @@ class PeerConnectionImpl : public webrtc::CreateSessionDescriptionObserver,
 
   //for myself
   bool InitPeerConnection();
-  std::unique_ptr<cricket::VideoCapturer> OpenVideoCaptureDevice();
   bool AddTracks();
   void CreateOffer();
   void SetLocalDescription(webrtc::SessionDescriptionInterface* desc);
